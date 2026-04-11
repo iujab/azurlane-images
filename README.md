@@ -1,6 +1,6 @@
 # Azur Lane Ship Images
 
-Extracted ship paintings and thumbnails for use by the community-maintained [AzurAPI](https://github.com/iujab/AzurAPI) data library.
+Extracted ship paintings and thumbnails for use by the community-maintained [AzurAPI](https://github.com/iujab/Lycoris-AzurAPI) data library.
 
 - `paintings/` — Skin art in WebP format, named by internal asset name (e.g. `beierfasite.webp` = Belfast default)
 - `thumbnails/` — Shipyard icons in PNG format, named by group_type ID (e.g. `20212.png` = Belfast)
