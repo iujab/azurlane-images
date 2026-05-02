@@ -1,0 +1,3 @@
+azlassets==3.5.*
+Pillow==11.*
+pytest==8.*
