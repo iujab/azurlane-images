@@ -1,0 +1,18 @@
+# Restrict azlassets to what azurlane-images actually needs.
+# Reduces download size from ~30 GB of all bundles to single-digit GB.
+
+asset-folders:
+  base: ClientAssets
+  extract: ClientExtract
+
+# Only download these top-level bundle categories.
+# - painting: full skin art, mesh-reconstructed by azlassets imgrecon
+# - shipyardicon: high-res ship icons used as our thumbnails
+download-folder-list:
+  - painting
+  - shipyardicon
+
+# Only extract the same set (no point extracting bundles we filtered out).
+extract-folder-list:
+  - painting
+  - shipyardicon
