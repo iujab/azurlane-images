@@ -29,3 +29,35 @@ def add_if_new(src: Path, dest: Path) -> bool:
     else:
         shutil.copyfile(src, dest)
     return True
+
+
+def sync_paintings(extract_dir: Path, target_dir: Path) -> int:
+    """Walk extract_dir for *.png and write missing webps into target_dir.
+
+    Returns the count of files added.
+    """
+    if not extract_dir.exists():
+        return 0
+    added = 0
+    for png in sorted(extract_dir.rglob("*.png")):
+        target = target_dir / f"{png.stem}.webp"
+        if add_if_new(png, target):
+            added += 1
+            print(f"+ paintings/{target.name}", flush=True)
+    return added
+
+
+def sync_thumbnails(extract_dir: Path, target_dir: Path) -> int:
+    """Walk extract_dir for *.png and copy missing files into target_dir.
+
+    Returns the count of files added.
+    """
+    if not extract_dir.exists():
+        return 0
+    added = 0
+    for png in sorted(extract_dir.rglob("*.png")):
+        target = target_dir / png.name
+        if add_if_new(png, target):
+            added += 1
+            print(f"+ thumbnails/{target.name}", flush=True)
+    return added

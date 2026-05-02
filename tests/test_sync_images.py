@@ -61,3 +61,72 @@ class TestAddIfNew:
 
         assert added is True
         assert dest.exists()
+
+
+from scripts.sync_images import sync_paintings, sync_thumbnails
+
+
+class TestSyncPaintings:
+    def test_adds_only_missing_webps(self, tmp_path: Path):
+        extract_root = tmp_path / "ClientExtract" / "EN" / "painting"
+        paintings_dir = tmp_path / "paintings"
+
+        # Source: three PNGs from "azlassets"
+        make_png(extract_root / "gin.png")
+        make_png(extract_root / "belfast_3.png")
+        make_png(extract_root / "new_skin_rw.png")
+
+        # Pre-seed: gin.webp already exists in the repo
+        paintings_dir.mkdir(parents=True)
+        # Use a distinct existing file so we can prove it wasn't overwritten
+        Image.new("RGB", (16, 16), (1, 2, 3)).save(
+            paintings_dir / "gin.webp", "WEBP"
+        )
+        gin_original = (paintings_dir / "gin.webp").read_bytes()
+
+        added = sync_paintings(extract_root, paintings_dir)
+
+        assert added == 2  # belfast_3 + new_skin_rw, not gin
+        assert (paintings_dir / "belfast_3.webp").exists()
+        assert (paintings_dir / "new_skin_rw.webp").exists()
+        # Untouched
+        assert (paintings_dir / "gin.webp").read_bytes() == gin_original
+
+    def test_handles_missing_extract_dir(self, tmp_path: Path):
+        extract_root = tmp_path / "does_not_exist"
+        paintings_dir = tmp_path / "paintings"
+        paintings_dir.mkdir()
+
+        added = sync_paintings(extract_root, paintings_dir)
+
+        assert added == 0
+
+
+class TestSyncThumbnails:
+    def test_copies_pngs_unchanged(self, tmp_path: Path):
+        extract_root = tmp_path / "ClientExtract" / "EN" / "shipyardicon"
+        thumbs_dir = tmp_path / "thumbnails"
+
+        make_png(extract_root / "10000.png", color=(50, 60, 70))
+        make_png(extract_root / "20212.png", color=(80, 90, 100))
+
+        added = sync_thumbnails(extract_root, thumbs_dir)
+
+        assert added == 2
+        # Verify these are PNGs, not converted
+        with Image.open(thumbs_dir / "10000.png") as img:
+            assert img.format == "PNG"
+
+    def test_skips_existing_thumbnails(self, tmp_path: Path):
+        extract_root = tmp_path / "ClientExtract" / "EN" / "shipyardicon"
+        thumbs_dir = tmp_path / "thumbnails"
+
+        make_png(extract_root / "10000.png")
+        thumbs_dir.mkdir()
+        # Pre-seed with a marker
+        (thumbs_dir / "10000.png").write_bytes(b"PRE-EXISTING-MARKER")
+
+        added = sync_thumbnails(extract_root, thumbs_dir)
+
+        assert added == 0
+        assert (thumbs_dir / "10000.png").read_bytes() == b"PRE-EXISTING-MARKER"
