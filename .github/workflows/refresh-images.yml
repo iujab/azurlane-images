@@ -97,3 +97,19 @@ jobs:
           git push
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger AzurAPI rebuild
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AZURAPI_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::AZURAPI_DISPATCH_TOKEN not set; skipping downstream dispatch"
+            exit 0
+          fi
+          gh api repos/iujab/Lycoris-AzurAPI/dispatches \
+            -X POST \
+            -f event_type=azurlane-images-updated \
+            -f "client_payload[images_sha]=${{ steps.commit.outputs.sha }}" \
+            -f "client_payload[source_run]=${{ github.run_id }}"
+          echo "Dispatched azurlane-images-updated to iujab/Lycoris-AzurAPI"
