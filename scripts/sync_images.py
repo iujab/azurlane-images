@@ -37,7 +37,10 @@ def sync_paintings(extract_dir: Path, target_dir: Path) -> int:
     """Walk extract_dir for *.png and write missing webps into target_dir.
 
     Returns the count of files added. Raises RuntimeError if two source PNGs
-    in the same run map to the same target (silent data loss otherwise).
+    *both newly written this run* map to the same target — that path would
+    otherwise lose data. If the target already existed in target_dir before
+    this run, a second source pointing at it is a no-op skip (the additive
+    invariant from add_if_new protects the existing file).
     """
     if not extract_dir.exists():
         return 0
@@ -61,7 +64,10 @@ def sync_thumbnails(extract_dir: Path, target_dir: Path) -> int:
     """Walk extract_dir for *.png and copy missing files into target_dir.
 
     Returns the count of files added. Raises RuntimeError if two source PNGs
-    in the same run map to the same target (silent data loss otherwise).
+    *both newly written this run* map to the same target — that path would
+    otherwise lose data. If the target already existed in target_dir before
+    this run, a second source pointing at it is a no-op skip (the additive
+    invariant from add_if_new protects the existing file).
     """
     if not extract_dir.exists():
         return 0
