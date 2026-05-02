@@ -101,6 +101,17 @@ class TestSyncPaintings:
 
         assert added == 0
 
+    def test_raises_on_stem_collision_within_run(self, tmp_path: Path):
+        extract_root = tmp_path / "ClientExtract" / "EN" / "painting"
+        paintings_dir = tmp_path / "paintings"
+
+        # Two PNGs in different subdirs with the same stem — collision.
+        make_png(extract_root / "bundle_a" / "gin.png", color=(10, 20, 30))
+        make_png(extract_root / "bundle_b" / "gin.png", color=(200, 200, 200))
+
+        with pytest.raises(RuntimeError, match="collision"):
+            sync_paintings(extract_root, paintings_dir)
+
 
 class TestSyncThumbnails:
     def test_copies_pngs_unchanged(self, tmp_path: Path):
@@ -130,3 +141,13 @@ class TestSyncThumbnails:
 
         assert added == 0
         assert (thumbs_dir / "10000.png").read_bytes() == b"PRE-EXISTING-MARKER"
+
+    def test_raises_on_name_collision_within_run(self, tmp_path: Path):
+        extract_root = tmp_path / "ClientExtract" / "EN" / "shipyardicon"
+        thumbs_dir = tmp_path / "thumbnails"
+
+        make_png(extract_root / "bundle_a" / "10000.png")
+        make_png(extract_root / "bundle_b" / "10000.png")
+
+        with pytest.raises(RuntimeError, match="collision"):
+            sync_thumbnails(extract_root, thumbs_dir)
