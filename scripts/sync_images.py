@@ -5,7 +5,9 @@ copy is canonical; if upstream changes a skin's art, we keep our version.
 """
 from __future__ import annotations
 
+import argparse
 import shutil
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -77,3 +79,30 @@ def sync_thumbnails(extract_dir: Path, target_dir: Path) -> int:
             written_this_run[target] = png
             print(f"+ thumbnails/{target.name}", flush=True)
     return added
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_PAINTINGS_SRC = REPO_ROOT / "ClientExtract" / "EN" / "painting"
+DEFAULT_PAINTINGS_DEST = REPO_ROOT / "paintings"
+DEFAULT_THUMBNAILS_SRC = REPO_ROOT / "ClientExtract" / "EN" / "shipyardicon"
+DEFAULT_THUMBNAILS_DEST = REPO_ROOT / "thumbnails"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--paintings-src", type=Path, default=DEFAULT_PAINTINGS_SRC)
+    parser.add_argument("--paintings-dest", type=Path, default=DEFAULT_PAINTINGS_DEST)
+    parser.add_argument("--thumbnails-src", type=Path, default=DEFAULT_THUMBNAILS_SRC)
+    parser.add_argument("--thumbnails-dest", type=Path, default=DEFAULT_THUMBNAILS_DEST)
+    args = parser.parse_args(argv)
+
+    paintings_added = sync_paintings(args.paintings_src, args.paintings_dest)
+    thumbnails_added = sync_thumbnails(args.thumbnails_src, args.thumbnails_dest)
+
+    print(f"\n=== Summary ===")
+    print(f"Added {paintings_added} paintings, {thumbnails_added} thumbnails")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

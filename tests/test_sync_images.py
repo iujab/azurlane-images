@@ -151,3 +151,33 @@ class TestSyncThumbnails:
 
         with pytest.raises(RuntimeError, match="collision"):
             sync_thumbnails(extract_root, thumbs_dir)
+
+
+import subprocess
+import sys
+
+
+class TestCliMain:
+    def test_main_with_explicit_paths(self, tmp_path: Path):
+        extract_paintings = tmp_path / "extract" / "painting"
+        extract_thumbs = tmp_path / "extract" / "shipyardicon"
+        out_paintings = tmp_path / "paintings"
+        out_thumbs = tmp_path / "thumbnails"
+        make_png(extract_paintings / "gin.png")
+        make_png(extract_thumbs / "10000.png")
+
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "scripts.sync_images",
+                "--paintings-src", str(extract_paintings),
+                "--paintings-dest", str(out_paintings),
+                "--thumbnails-src", str(extract_thumbs),
+                "--thumbnails-dest", str(out_thumbs),
+            ],
+            capture_output=True, text=True, check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert (out_paintings / "gin.webp").exists()
+        assert (out_thumbs / "10000.png").exists()
+        assert "Added 1 paintings, 1 thumbnails" in result.stdout
