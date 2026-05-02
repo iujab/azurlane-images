@@ -1,0 +1,99 @@
+name: Refresh Images
+
+on:
+  schedule:
+    - cron: '0 12 * * 0'   # Sunday 12:00 UTC — 12h ahead of AzurAPI's Monday cron
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One run at a time. If a new schedule trigger arrives mid-run, queue it.
+concurrency:
+  group: refresh-images
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Restore azlassets state cache
+        uses: actions/cache@v4
+        with:
+          # Only the small state files. Bulk .ab files are NOT cached
+          # (would blow past the 10GB cache limit).
+          path: |
+            ClientAssets/EN/difflog
+            ClientAssets/EN/*.version
+            ClientAssets/EN/*.hash
+            ClientAssets/EN/latest
+          key: azlassets-state-EN-${{ github.run_id }}
+          restore-keys: |
+            azlassets-state-EN-
+
+      - name: Show pre-run state
+        run: |
+          echo "Cached state files:"
+          find ClientAssets -type f 2>/dev/null | head -20 || echo "  (no cache hit)"
+          echo "Free disk:"
+          df -h /
+
+      - name: Download new bundles (azlassets)
+        run: |
+          python -m downloader EN
+          echo "Downloaded bundles:"
+          du -sh ClientAssets/EN 2>/dev/null || echo "  (none)"
+
+      - name: Extract bundles to PNG
+        run: |
+          python -m extractor EN
+          echo "Extracted PNGs:"
+          find ClientExtract -name "*.png" 2>/dev/null | wc -l
+
+      - name: Free disk before sync
+        run: |
+          # We don't need the .ab files anymore — keep state files only.
+          find ClientAssets/EN -name "*.ab" -delete 2>/dev/null || true
+          df -h /
+
+      - name: Sync new files into repo (additive only)
+        id: sync
+        run: |
+          python -m scripts.sync_images | tee sync.log
+          # Emit added counts for downstream steps
+          tail -1 sync.log
+
+      - name: Drop ClientExtract before commit
+        run: rm -rf ClientExtract
+
+      - name: Commit and push if changed
+        id: commit
+        run: |
+          git add paintings/ thumbnails/
+          if git diff --cached --quiet; then
+            echo "No new images. Skipping commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ADDED_PAINTINGS=$(git diff --cached --name-only paintings/ | wc -l)
+          ADDED_THUMBS=$(git diff --cached --name-only thumbnails/ | wc -l)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: add ${ADDED_PAINTINGS} paintings, ${ADDED_THUMBS} thumbnails from EN client"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
