@@ -1,0 +1,13 @@
+# Asset-extraction work directories — never committed
+ClientAssets/
+ClientExtract/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# OS
+.DS_Store
