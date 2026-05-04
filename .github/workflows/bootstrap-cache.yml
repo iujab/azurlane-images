@@ -1,0 +1,106 @@
+name: Bootstrap azlassets cache (manual)
+
+# One-time seeding of the azlassets state cache so the regular
+# Refresh Images workflow's first scheduled run doesn't try to download
+# the entire EN catalog at once. Splits painting and shipyardicon
+# downloads into separate phases with .ab cleanup between them, keeping
+# disk usage under the GitHub Actions runner's ~14 GB ceiling.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read   # Read-only — must NOT push the in-CI user_config edits.
+
+concurrency:
+  group: bootstrap-cache
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350   # near the 6h job ceiling; initial download is slow
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Restore prior state cache (if any partial run exists)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ClientAssets/EN/difflog
+            ClientAssets/EN/*.version
+            ClientAssets/EN/*.hash
+            ClientAssets/EN/latest
+          key: azlassets-state-EN-bootstrap-${{ github.run_id }}
+          restore-keys: |
+            azlassets-state-EN-
+
+      - name: Show pre-run state
+        run: |
+          echo "Cached state files:"
+          find ClientAssets -type f 2>/dev/null | head -20 || echo "  (no cache hit)"
+          echo "Free disk:"
+          df -h /
+
+      - name: Phase 1 — paintings only
+        run: |
+          python <<'PY'
+          import yaml
+          path = 'config/user_config.yml'
+          c = yaml.safe_load(open(path))
+          c['download-folder-list'] = ['painting']
+          c['extract-folder-list'] = ['painting']
+          yaml.safe_dump(c, open(path, 'w'))
+          PY
+          python -m downloader EN
+          echo "Disk after painting download:"
+          du -sh ClientAssets/EN 2>/dev/null || true
+          df -h /
+          # Drop the bulky .ab files; state files (*.hash, *.version, difflog, latest) survive.
+          find ClientAssets/EN -name '*.ab' -delete 2>/dev/null || true
+          echo "Disk after .ab cleanup:"
+          df -h /
+
+      - name: Phase 2 — shipyardicon only
+        run: |
+          python <<'PY'
+          import yaml
+          path = 'config/user_config.yml'
+          c = yaml.safe_load(open(path))
+          c['download-folder-list'] = ['shipyardicon']
+          c['extract-folder-list'] = ['shipyardicon']
+          yaml.safe_dump(c, open(path, 'w'))
+          PY
+          python -m downloader EN
+          echo "Disk after shipyardicon download:"
+          du -sh ClientAssets/EN 2>/dev/null || true
+          df -h /
+          find ClientAssets/EN -name '*.ab' -delete 2>/dev/null || true
+
+      - name: Show final state files
+        run: |
+          echo "State files to be cached:"
+          find ClientAssets/EN -type f | sort
+          echo "Total state size:"
+          du -sh ClientAssets/EN 2>/dev/null || true
+
+      - name: Save state cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ClientAssets/EN/difflog
+            ClientAssets/EN/*.version
+            ClientAssets/EN/*.hash
+            ClientAssets/EN/latest
+          key: azlassets-state-EN-bootstrap-${{ github.run_id }}
