@@ -62,7 +62,11 @@ jobs:
 
       - name: Extract bundles to PNG
         run: |
-          python -m azl extract EN
+          # wrapper around `azl extract`: a bundle that fails to extract is logged
+          # and skipped instead of aborting the whole run (see scripts/extract_images.py)
+          python -m scripts.extract_images EN 2>&1 | tee extract.log
+          echo "Skipped bundles: $(grep -c '^SKIP ' extract.log || true)"
+          grep '^SKIP ' extract.log || true
           echo "Extracted PNGs:"
           find ClientExtract -name "*.png" 2>/dev/null | wc -l
 
