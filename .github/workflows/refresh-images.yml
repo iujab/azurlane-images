@@ -36,14 +36,16 @@ jobs:
         with:
           # Only the small state files. Bulk .ab files are NOT cached
           # (would blow past the 10GB cache limit).
+          # azlassets >= 5 state layout: version*.txt + hashes*.csv per asset type,
+          # difflog/<type>/*.json + latest.txt. New key prefix so the pre-5.x
+          # state (which never recorded a version) is not restored.
           path: |
             ClientAssets/EN/difflog
-            ClientAssets/EN/*.version
-            ClientAssets/EN/*.hash
-            ClientAssets/EN/latest
-          key: azlassets-state-EN-${{ github.run_id }}
+            ClientAssets/EN/version*.txt
+            ClientAssets/EN/hashes*.csv
+          key: azlassets5-state-EN-${{ github.run_id }}
           restore-keys: |
-            azlassets-state-EN-
+            azlassets5-state-EN-
 
       - name: Show pre-run state
         run: |
@@ -54,13 +56,17 @@ jobs:
 
       - name: Download new bundles (azlassets)
         run: |
-          python -m downloader EN
+          python -m azl download EN
           echo "Downloaded bundles:"
           du -sh ClientAssets/EN 2>/dev/null || echo "  (none)"
 
       - name: Extract bundles to PNG
         run: |
-          python -m extractor EN
+          # wrapper around `azl extract`: a bundle that fails to extract is logged
+          # and skipped instead of aborting the whole run (see scripts/extract_images.py)
+          python -m scripts.extract_images EN 2>&1 | tee extract.log
+          echo "Skipped bundles: $(grep -c '^SKIP ' extract.log || true)"
+          grep '^SKIP ' extract.log || true
           echo "Extracted PNGs:"
           find ClientExtract -name "*.png" 2>/dev/null | wc -l
 
@@ -99,7 +105,8 @@ jobs:
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Trigger AzurAPI rebuild
-        if: steps.commit.outputs.changed == 'true'
+        # Only main feeds the data pipeline; a branch run must not trigger AzurAPI.
+        if: steps.commit.outputs.changed == 'true' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.AZURAPI_DISPATCH_TOKEN }}
         run: |

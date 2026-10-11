@@ -181,3 +181,46 @@ class TestCliMain:
         assert (out_paintings / "gin.webp").exists()
         assert (out_thumbs / "10000.png").exists()
         assert "Added 1 paintings, 1 thumbnails" in result.stdout
+
+
+class TestVersionedExtractLayout:
+    """azlassets >= 5 writes ClientExtract/EN/<TYPE version>/<folder>/ instead of ClientExtract/EN/<folder>/."""
+
+    def test_finds_flat_and_versioned_dirs_newest_first(self, tmp_path: Path):
+        from scripts.sync_images import find_extract_dirs
+
+        root = tmp_path / "ClientExtract" / "EN"
+        for d in ("painting", "PAINTING 657/painting", "PAINTING 662/painting", "AZL 9.3.384/shipyardicon"):
+            (root / d).mkdir(parents=True)
+
+        dirs = find_extract_dirs(root, "painting")
+
+        assert [d.relative_to(root).as_posix() for d in dirs] == ["painting", "PAINTING 662/painting", "PAINTING 657/painting"]
+        assert [d.relative_to(root).as_posix() for d in find_extract_dirs(root, "shipyardicon")] == ["AZL 9.3.384/shipyardicon"]
+
+    def test_main_syncs_versioned_layout(self, tmp_path: Path):
+        from scripts.sync_images import main
+
+        root = tmp_path / "ClientExtract" / "EN"
+        make_png(root / "PAINTING 662" / "painting" / "weikesibao.png")
+        make_png(root / "AZL 9.3.384" / "shipyardicon" / "10236.png")
+        paintings, thumbs = tmp_path / "paintings", tmp_path / "thumbnails"
+
+        rc = main(["--extract-root", str(root), "--paintings-dest", str(paintings), "--thumbnails-dest", str(thumbs)])
+
+        assert rc == 0
+        assert (paintings / "weikesibao.webp").exists()
+        assert (thumbs / "10236.png").exists()
+
+    def test_newest_version_wins_same_run(self, tmp_path: Path):
+        from scripts.sync_images import main
+
+        root = tmp_path / "ClientExtract" / "EN"
+        make_png(root / "PAINTING 657" / "painting" / "x.png", color=(1, 1, 1))
+        make_png(root / "PAINTING 662" / "painting" / "x.png", color=(9, 9, 9))
+        paintings = tmp_path / "paintings"
+
+        main(["--extract-root", str(root), "--paintings-dest", str(paintings), "--thumbnails-dest", str(tmp_path / "t")])
+
+        with Image.open(paintings / "x.webp") as img:
+            assert img.getpixel((0, 0))[:3] == (9, 9, 9)

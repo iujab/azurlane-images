@@ -1,0 +1,24 @@
+# azlassets (>= 5.0) user config for azurlane-images.
+#
+# Restrict downloads and extraction to what this repo publishes:
+#   painting/      full skin art, mesh-reconstructed by azlassets imgrecon  -> paintings/*.webp
+#   shipyardicon/  high-res ship icons                                      -> thumbnails/*.png
+# The full client is ~30 GB of bundles; this keeps it to single-digit GB.
+# Unset options fall back to the library defaults (see `azl convert` output or
+# the packaged userconfig_default.toml).
+
+[user]
+useragent = "azurlane-images (github.com/iujab/azurlane-images)"
+
+[filepaths]
+asset-directory = "ClientAssets"
+extract-directory = "ClientExtract"
+
+[download.filters]
+whitelist = ["painting/", "shipyardicon/"]
+blacklist = []
+
+[extract.filters]
+use-download-filters = true
+whitelist = []
+blacklist = []
